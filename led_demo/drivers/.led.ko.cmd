@@ -1,0 +1,1 @@
+cmd_/home/zjw/led_demo/drivers/led.ko := /usr/local/arm/4.5.1/bin/arm-none-linux-gnueabi-ld -EL -r  -T /home/zjw/yueqian/linux-2.6.35.7-gec-v3.0.3/scripts/module-common.lds --build-id -o /home/zjw/led_demo/drivers/led.ko /home/zjw/led_demo/drivers/led.o /home/zjw/led_demo/drivers/led.mod.o

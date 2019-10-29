@@ -1,0 +1,102 @@
+/**
+*
+*this is a led driver for GEC210 20191029
+*
+*/
+
+#include "linux/kernel.h"
+#include "linux/module.h"
+#include "linux/miscdevice.h"
+#include "linux/fs.h"
+#include "linux/types.h"
+#include "linux/moduleparam.h"
+#include "linux/slab.h"
+#include "linux/ioctl.h"
+#include "linux/cdev.h"
+#include "linux/delay.h"
+
+#include "mach/gpio.h"
+#include "mach/regs-gpio.h"
+#include "plat/gpio-cfg.h"
+
+#define DEVICE_NAME "leds"
+
+
+static int led_gpios[4] = 
+{
+	S5PV210_GPJ2(0),
+	S5PV210_GPJ2(1),
+	S5PV210_GPJ2(2),
+	S5PV210_GPJ2(3),
+};
+
+#define LED_NUM ARRAY_SIZE(led_gpios)
+
+//实现系统的IO控制命令
+static long gec210_leds_ioctl(struct file *flip, unsigned int cmd,
+	unsigned long arg)
+{
+	switch(cmd)
+	{
+		case 0:
+		case 1:
+			if(arg > LED_NUM)
+				return -EINVAL;
+			gpio_set_value(led_gpios[arg],cmd);
+			break;
+		default:
+			return -EINVAL;
+
+	}
+	return 0;
+}
+
+//初始化file_operations结构体，实现系统调用
+static struct file_operations gec210_led_dev_fops={
+	.owner	=	THIS_MODULE,
+	.unlocked_ioctl	=	gec210_leds_ioctl,
+};
+
+//初始化杂项设备结构体
+static struct miscdevice gec210_led_dev={
+	.minor	=	MISC_DYNAMIC_MINOR,
+	.name	=	DEVICE_NAME,
+	.fops	=	&gec210_led_dev_fops,
+};
+
+//驱动装载函数
+static int __init gec210_led_dev_init(void)
+{
+	int ret;
+	int i;
+
+	for(i=0;i<LED_NUM;i++)//轮询请求IO资源
+	{
+		ret = gpio_request(led_gpios[i],"LED");
+		if(ret)//请求不成功
+		{
+			printk("%s: request GPIO %d for LED failed,ret=%d\n",DEVICE_NAME,led_gpios[i],ret);
+			return ret;
+		}
+		s3c_gpio_cfgpin(led_gpios[i],S3C_GPIO_OUTPUT);//配置GPIO为输出
+		gpio_set_value(led_gpios[i],1);//设置GPIO输出1，即LED灭
+	}
+	ret = misc_register(&gec210_led_dev);////注册杂项设备
+	printk("\t%s initalized\n",DEVICE_NAME);
+	return ret;
+}
+
+//驱动卸载函数
+static void __exit gec210_led_dev_exit(void)
+{
+	int i;
+	for(i=0;i<LED_NUM;i++)//轮询释放IO资源
+		gpio_free(led_gpios[i]);
+	misc_deregister(&gec210_led_dev);
+}
+
+module_init(gec210_led_dev_init);
+module_exit(gec210_led_dev_exit);
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("ZJW");
